@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Hand Snake</title>
+<style>
+body{
+  margin:0;
+  overflow:hidden;
+  background:black;
+}
+canvas,video{
+  position:absolute;
+  top:0;
+  left:0;
+}
+video{
+  opacity:0.2;
+}
+</style>
+</head>
+<body>
+
+<video id="video" autoplay playsinline></video>
+<canvas id="canvas"></canvas>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+<script>
+const video=document.getElementById("video");
+const canvas=document.getElementById("canvas");
+const ctx=canvas.getContext("2d");
+
+canvas.width=window.innerWidth;
+canvas.height=window.innerHeight;
+
+let target={x:canvas.width/2,y:canvas.height/2};
+
+const segments=35;
+const spacing=15;
+const snake=[];
+
+for(let i=0;i<segments;i++){
+  snake.push({x:target.x,y:target.y});
+}
+
+function drawSnake(){
+  for(let i=snake.length-1;i>0;i--){
+    let prev=snake[i-1];
+    let curr=snake[i];
+    let angle=Math.atan2(prev.y-curr.y,prev.x-curr.x);
+    curr.x=prev.x-Math.cos(angle)*spacing;
+    curr.y=prev.y-Math.sin(angle)*spacing;
+  }
+
+  let dx=target.x-snake[0].x;
+  let dy=target.y-snake[0].y;
+  snake[0].x+=dx*0.25;
+  snake[0].y+=dy*0.25;
+
+  for(let i=snake.length-1;i>=0;i--){
+    let p=snake[i];
+    let size=8-i*0.15;
+
+    ctx.beginPath();
+    ctx.fillStyle="white";
+    ctx.arc(p.x,p.y,Math.max(size,2),0,Math.PI*2);
+    ctx.fill();
+  }
+}
+
+function animate(){
+  ctx.fillStyle="rgba(0,0,0,0.3)";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  drawSnake();
+  requestAnimationFrame(animate);
+}
+animate();
+
+const hands=new Hands({
+  locateFile:file=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+});
+
+hands.setOptions({
+  maxNumHands:1,
+  modelComplexity:1,
+  minDetectionConfidence:0.7,
+  minTrackingConfidence:0.7
+});
+
+hands.onResults(results=>{
+  if(results.multiHandLandmarks.length>0){
+    const hand=results.multiHandLandmarks[0];
+    const finger=hand[8]; // index finger tip
+
+    target.x=(1-finger.x)*canvas.width;
+    target.y=finger.y*canvas.height;
+  }
+});
+
+const camera=new Camera(video,{
+  onFrame:async()=>{
+    await hands.send({image:video});
+  },
+  width:640,
+  height:480
+});
+camera.start();
+</script>
+
+</body>
+</html>
